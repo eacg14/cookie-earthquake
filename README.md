@@ -26,17 +26,37 @@ See `/root/.claude/plans/i-take-sports-photos-greedy-emerson.md`-style design
 notes in the module docstrings (`flipbook/alignment.py` especially) for the
 reasoning behind the alignment math.
 
-## Setup
+## Setup (local)
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-python scripts/download_models.py   # fetches the MediaPipe pose model (~30MB), one-time
+python scripts/download_models.py   # fetches the MediaPipe pose model (~10MB), one-time
 streamlit run app.py
 ```
 
 Then open the URL Streamlit prints (usually http://localhost:8501).
+
+The model download step is optional -- `app.py` fetches it automatically on
+first use if it's missing -- but running it ahead of time avoids a delay on
+your first page load.
+
+## Deploying to Streamlit Community Cloud
+
+This app is **not** deployable on Vercel: Streamlit is a long-running server
+that holds a WebSocket connection open per user for its reactive UI (session
+state, the click-to-correct grid, live previews), which doesn't fit Vercel's
+serverless-function model at all. [Streamlit Community
+Cloud](https://streamlit.io/cloud) is built for exactly this repo shape and
+is free:
+
+1. Push this repo to GitHub (already done if you're reading this from there).
+2. On share.streamlit.io, create a new app pointing at this repo/branch and `app.py`.
+3. In "Advanced settings", pick Python 3.11 (what this app is tested against).
+4. Deploy. `requirements.txt` (pip deps) and `packages.txt` (apt deps --
+   `libgl1`/`libglib2.0-0`, needed by OpenCV/MediaPipe) are picked up
+   automatically. The pose model downloads itself on first use.
 
 ## Development
 

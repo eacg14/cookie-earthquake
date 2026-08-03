@@ -5,7 +5,6 @@ and correct the auto-detected alignment, then export cropped/aligned stills.
 from __future__ import annotations
 
 import hashlib
-from pathlib import Path
 
 import numpy as np
 import streamlit as st
@@ -14,18 +13,19 @@ from streamlit_image_coordinates import streamlit_image_coordinates
 
 from flipbook import export, pipeline
 from flipbook.detection import PoseDetector, alignment_record_from_landmarks
+from flipbook.model_assets import ensure_model
 from flipbook.models import AlignmentRecord
 from flipbook.presets import PRESETS
 
-MODEL_PATH = Path(__file__).resolve().parent / "models" / "pose_landmarker_full.task"
 THUMBNAIL_WIDTH = 420
 PREVIEW_WIDTH = 320
 
 st.set_page_config(page_title="Flipbook Aligner", layout="wide")
 
 
-@st.cache_resource
-def get_detector(model_path: str) -> PoseDetector:
+@st.cache_resource(show_spinner="Preparing pose detection model (one-time, ~10MB download)...")
+def get_detector() -> PoseDetector:
+    model_path = ensure_model()
     return PoseDetector(model_path)
 
 
@@ -101,10 +101,9 @@ def run_detection(detector: PoseDetector) -> None:
     progress.empty()
 
 
-def build_plans():
+def build_plans(detector: PoseDetector):
     preset = PRESETS[st.session_state.preset_key]
     overrides = {idx: effective_record(idx) for idx in range(len(st.session_state.frames))}
-    detector = get_detector(str(MODEL_PATH))
     return pipeline.build_frame_plans(
         st.session_state.frames,
         preset,
@@ -123,11 +122,10 @@ def main() -> None:
     )
     init_state()
 
-    if not MODEL_PATH.exists():
-        st.error(
-            f"Pose model not found at `{MODEL_PATH}`. Run "
-            "`python scripts/download_models.py` first, then reload this page."
-        )
+    try:
+        detector = get_detector()
+    except Exception as exc:  # noqa: BLE001 - surfaced to the user, not a bug to swallow
+        st.error(f"Couldn't load the pose detection model: {exc}")
         return
 
     uploaded_files = st.file_uploader(
@@ -173,8 +171,6 @@ def main() -> None:
             "Correct camera tilt (rotation)", value=st.session_state.rotation_enabled
         )
 
-    detector = get_detector(str(MODEL_PATH))
-
     if st.button("Run pose detection", type="primary"):
         run_detection(detector)
 
@@ -183,7 +179,7 @@ def main() -> None:
         st.warning("Run pose detection before reviewing/exporting.")
         return
 
-    st.session_state.plans = build_plans()
+    st.session_state.plans = build_plans(detector)
 
     st.subheader("Review & correct")
     st.caption(
