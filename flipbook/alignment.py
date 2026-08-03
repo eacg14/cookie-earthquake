@@ -93,3 +93,17 @@ def apply_transform(matrix: np.ndarray, point: tuple[float, float]) -> tuple[flo
     dx = matrix[0, 0] * x + matrix[0, 1] * y + matrix[0, 2]
     dy = matrix[1, 0] * x + matrix[1, 1] * y + matrix[1, 2]
     return (dx, dy)
+
+
+def compose_affine(outer: np.ndarray, inner: np.ndarray) -> np.ndarray:
+    """Compose two 2x3 affine matrices: result(p) = outer(inner(p)).
+
+    Used to chain "this frame's original pixels -> the reference frame's
+    pixel space" (from background feature matching) with "the reference
+    frame's pixel space -> the output canvas" (from its pose-based crop)
+    into a single direct transform.
+    """
+    outer3 = np.vstack([outer, [0.0, 0.0, 1.0]])
+    inner3 = np.vstack([inner, [0.0, 0.0, 1.0]])
+    combined = outer3 @ inner3
+    return combined[:2, :]

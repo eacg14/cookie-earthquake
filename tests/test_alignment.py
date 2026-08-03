@@ -2,7 +2,15 @@ import math
 
 import pytest
 
-from flipbook.alignment import apply_transform, compute_transform, reference_angle, torso_vector
+import numpy as np
+
+from flipbook.alignment import (
+    apply_transform,
+    compose_affine,
+    compute_transform,
+    reference_angle,
+    torso_vector,
+)
 from flipbook.detection import (
     LEFT_HIP,
     LEFT_SHOULDER,
@@ -181,3 +189,35 @@ def test_fallback_no_landmarks_at_all_needs_manual():
     record, warnings = alignment_record_from_landmarks({}, 400, 600)
     assert record.needs_manual
     assert len(warnings) == 1
+
+
+# --- compose_affine (chains a background-match transform with the reference frame's crop) -----
+
+
+def test_compose_affine_identity():
+    identity = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]])
+    point = (37.0, -12.5)
+    result = apply_transform(compose_affine(identity, identity), point)
+    assert result[0] == pytest.approx(point[0])
+    assert result[1] == pytest.approx(point[1])
+
+
+def test_compose_affine_translations_add():
+    outer = np.array([[1.0, 0.0, 10.0], [0.0, 1.0, 5.0]])
+    inner = np.array([[1.0, 0.0, 100.0], [0.0, 1.0, -50.0]])
+    combined = compose_affine(outer, inner)
+    result = apply_transform(combined, (0.0, 0.0))
+    assert result[0] == pytest.approx(110.0)
+    assert result[1] == pytest.approx(-45.0)
+
+
+def test_compose_affine_matches_sequential_application():
+    outer = np.array([[0.5, -0.2, 30.0], [0.2, 0.5, -10.0]])
+    inner = np.array([[1.2, 0.1, -5.0], [-0.1, 1.2, 8.0]])
+    combined = compose_affine(outer, inner)
+
+    point = (42.0, 17.0)
+    expected = apply_transform(outer, apply_transform(inner, point))
+    actual = apply_transform(combined, point)
+    assert actual[0] == pytest.approx(expected[0])
+    assert actual[1] == pytest.approx(expected[1])

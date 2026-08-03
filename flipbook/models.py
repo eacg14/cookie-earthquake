@@ -54,12 +54,24 @@ class AlignmentRecord:
 
 @dataclass
 class FramePlan:
-    """Everything needed to render one output frame."""
+    """Everything needed to render one output frame.
+
+    The reference frame's matrix comes from its pose-based crop
+    (alignment.compute_transform on an AlignmentRecord); every other frame's
+    matrix comes from matching its static background to the reference frame
+    (features.py) rather than tracking the moving subject, composed with the
+    reference frame's own crop (alignment.compose_affine). Either way, by the
+    time it reaches a FramePlan it's just "the transform that maps this
+    frame's original pixels to the output canvas" -- uniform regardless of
+    how it was derived.
+    """
 
     frame_index: int
-    alignment: AlignmentRecord
-    pose_result: PoseResult | None = None
-    transform_matrix: np.ndarray | None = None  # 2x3 affine matrix once computed
+    matrix: np.ndarray | None = None  # 2x3 affine, original pixels -> output canvas
+    source: AlignmentSource = "auto"
+    confidence: float = 1.0
+    needs_manual: bool = False
+    match_info: str = ""  # e.g. "58 matches, 92% inliers" -- diagnostic, shown in the UI
     output_image: np.ndarray | None = None  # warped/cropped result, once rendered
     tight_crop_fraction: float | None = None
     warnings: list[str] = field(default_factory=list)
@@ -67,4 +79,4 @@ class FramePlan:
     @property
     def blocked(self) -> bool:
         """True while this frame still needs manual correction before it can be exported."""
-        return self.alignment.needs_manual
+        return self.needs_manual
