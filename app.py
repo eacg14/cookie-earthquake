@@ -20,6 +20,13 @@ from flipbook.presets import PRESETS
 THUMBNAIL_WIDTH = 420
 PREVIEW_WIDTH = 320
 
+# Long-lens sports cameras commonly shoot 20-45MP JPEGs, which decompress to
+# 70-150MB+ raw arrays each -- holding a full swing sequence of those in
+# memory at once can exceed hosting limits (e.g. Streamlit Community Cloud's
+# free-tier 1GB RAM). Our largest output preset tops out at 1920px, so there's
+# no quality reason to keep originals larger than this working resolution.
+MAX_WORKING_DIMENSION = 2400
+
 st.set_page_config(page_title="Flipbook Aligner", layout="wide")
 
 
@@ -32,7 +39,15 @@ def get_detector() -> PoseDetector:
 def load_frame(uploaded_file) -> np.ndarray:
     image = Image.open(uploaded_file)
     image = ImageOps.exif_transpose(image)
-    return np.array(image.convert("RGB"))
+    image = image.convert("RGB")
+
+    longest_side = max(image.width, image.height)
+    if longest_side > MAX_WORKING_DIMENSION:
+        scale = MAX_WORKING_DIMENSION / longest_side
+        new_size = (round(image.width * scale), round(image.height * scale))
+        image = image.resize(new_size, Image.LANCZOS)
+
+    return np.array(image)
 
 
 def file_signature(uploaded_files) -> str:
