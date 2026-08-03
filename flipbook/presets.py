@@ -1,15 +1,16 @@
 """Platform/format output presets.
 
-Each preset defines the output aspect ratio/resolution for a social platform
-format, plus where the alignment anchor (hip midpoint, from the reference
-frame's pose) should land within that canvas. Add new platforms/formats by
-appending rows to PRESETS -- no other module needs to change.
+Each preset defines only the output aspect ratio/resolution for a social
+platform format. There's no positioning field: the reference frame is used
+exactly as shot (a plain center-crop to the target aspect ratio, no
+repositioning), and every other frame is aligned to match it via background
+feature matching (features.py) -- not by tracking or recentering the
+subject. Add new platforms/formats by appending rows to PRESETS -- no other
+module needs to change.
 
-Note there is no "zoom"/scale field here: the crop size is computed
-automatically per-series (see pipeline.py) as the largest size that still
-keeps every aligned frame's real pixel data (no border replication) --
-maximizing how much of the original photos is kept, rather than guessing a
-fixed constant or deriving it from the subject's size.
+Crop size is not a preset field either: pipeline.py computes it
+automatically per-series as the largest size that keeps every aligned
+frame's real pixel data (no border replication).
 """
 
 from __future__ import annotations
@@ -26,18 +27,12 @@ class PresetSpec:
     aspect_h: int
     output_width: int
     output_height: int
-    # Where the anchor (hip midpoint) should land, as a fraction of
-    # (output_width, output_height). E.g. (0.5, 0.62) centers horizontally
-    # and places the hips a bit below vertical center.
-    target_anchor_frac: tuple[float, float]
 
     def __post_init__(self) -> None:
         if self.output_width <= 0 or self.output_height <= 0:
             raise ValueError(f"{self.key}: output dimensions must be positive")
         if abs(self.output_width / self.output_height - self.aspect_w / self.aspect_h) > 1e-6:
             raise ValueError(f"{self.key}: output resolution does not match aspect ratio")
-        if not (0.0 < self.target_anchor_frac[0] < 1.0 and 0.0 < self.target_anchor_frac[1] < 1.0):
-            raise ValueError(f"{self.key}: target_anchor_frac must be within (0, 1)")
 
     @property
     def aspect_ratio(self) -> float:
@@ -55,7 +50,6 @@ PRESETS: dict[str, PresetSpec] = {
             aspect_h=1,
             output_width=1080,
             output_height=1080,
-            target_anchor_frac=(0.5, 0.62),
         ),
         PresetSpec(
             key="ig_feed_portrait",
@@ -65,7 +59,6 @@ PRESETS: dict[str, PresetSpec] = {
             aspect_h=5,
             output_width=1080,
             output_height=1350,
-            target_anchor_frac=(0.5, 0.6),
         ),
         PresetSpec(
             key="ig_stories",
@@ -75,7 +68,6 @@ PRESETS: dict[str, PresetSpec] = {
             aspect_h=16,
             output_width=1080,
             output_height=1920,
-            target_anchor_frac=(0.5, 0.55),
         ),
     ]
 }

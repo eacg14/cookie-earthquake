@@ -35,19 +35,4 @@ def test_preset_rejects_mismatched_aspect_and_resolution():
             aspect_h=1,
             output_width=100,
             output_height=200,
-            target_anchor_frac=(0.5, 0.5),
-        )
-
-
-def test_preset_rejects_out_of_range_fracs():
-    with pytest.raises(ValueError):
-        PresetSpec(
-            key="bad",
-            label="bad",
-            platform="instagram",
-            aspect_w=1,
-            aspect_h=1,
-            output_width=100,
-            output_height=100,
-            target_anchor_frac=(1.5, 0.5),
         )

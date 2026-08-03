@@ -18,7 +18,6 @@ SMALL_PRESET = PresetSpec(
     aspect_h=1,
     output_width=500,
     output_height=500,
-    target_anchor_frac=(0.5, 0.5),
 )
 
 
