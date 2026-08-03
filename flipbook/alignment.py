@@ -50,20 +50,25 @@ def compute_transform(
     record: AlignmentRecord,
     preset: PresetSpec,
     global_rotation: float,
+    scale: float,
 ) -> np.ndarray:
-    """Build the 2x3 affine matrix aligning `record` onto `preset`'s canonical framing.
+    """Build the 2x3 affine matrix placing `record`'s anchor onto `preset`'s
+    canonical position, rotated by `global_rotation` and scaled by `scale`.
 
     `global_rotation` is a single angle (radians) shared across the whole
     frame sequence -- computed once from a designated reference frame via
     `reference_angle`, not recomputed per-frame. Pass 0.0 to disable rotation
     correction entirely.
-    """
-    length = record.length
-    if length <= 0:
-        raise ValueError("AlignmentRecord has zero-length scale reference; cannot compute scale")
 
-    target_length = preset.target_scale_frac * preset.output_height
-    scale = target_length / length
+    `scale` is a direct multiplier (output-canvas pixels per reference-frame
+    pixel), deliberately NOT derived from the record's own torso length --
+    pose data only drives position (anchor) and rotation here, never size.
+    Callers (pipeline.py) choose scale from the actual aligned-frame
+    geometry, so it reflects how much of the real photos can be kept, not
+    how close the subject happened to be standing to the camera.
+    """
+    if scale <= 0:
+        raise ValueError("scale must be positive")
 
     cos_t = math.cos(global_rotation)
     sin_t = math.sin(global_rotation)

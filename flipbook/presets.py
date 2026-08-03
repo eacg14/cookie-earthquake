@@ -1,9 +1,15 @@
 """Platform/format output presets.
 
 Each preset defines the output aspect ratio/resolution for a social platform
-format, plus where the alignment anchor (hip midpoint) and scale reference
-(torso length) should land within that canvas. Add new platforms/formats by
+format, plus where the alignment anchor (hip midpoint, from the reference
+frame's pose) should land within that canvas. Add new platforms/formats by
 appending rows to PRESETS -- no other module needs to change.
+
+Note there is no "zoom"/scale field here: the crop size is computed
+automatically per-series (see pipeline.py) as the largest size that still
+keeps every aligned frame's real pixel data (no border replication) --
+maximizing how much of the original photos is kept, rather than guessing a
+fixed constant or deriving it from the subject's size.
 """
 
 from __future__ import annotations
@@ -24,12 +30,6 @@ class PresetSpec:
     # (output_width, output_height). E.g. (0.5, 0.62) centers horizontally
     # and places the hips a bit below vertical center.
     target_anchor_frac: tuple[float, float]
-    # Torso length (shoulder-mid to hip-mid) as a fraction of output_height.
-    # This is the "zoom" knob: smaller values crop looser (keep more of the
-    # original photo), larger values crop tighter around the subject. Treated
-    # as a default starting point -- app.py lets the user override it per
-    # session via a slider.
-    target_scale_frac: float
 
     def __post_init__(self) -> None:
         if self.output_width <= 0 or self.output_height <= 0:
@@ -38,8 +38,6 @@ class PresetSpec:
             raise ValueError(f"{self.key}: output resolution does not match aspect ratio")
         if not (0.0 < self.target_anchor_frac[0] < 1.0 and 0.0 < self.target_anchor_frac[1] < 1.0):
             raise ValueError(f"{self.key}: target_anchor_frac must be within (0, 1)")
-        if not (0.0 < self.target_scale_frac < 1.0):
-            raise ValueError(f"{self.key}: target_scale_frac must be within (0, 1)")
 
     @property
     def aspect_ratio(self) -> float:
@@ -58,7 +56,6 @@ PRESETS: dict[str, PresetSpec] = {
             output_width=1080,
             output_height=1080,
             target_anchor_frac=(0.5, 0.62),
-            target_scale_frac=0.26,
         ),
         PresetSpec(
             key="ig_feed_portrait",
@@ -69,7 +66,6 @@ PRESETS: dict[str, PresetSpec] = {
             output_width=1080,
             output_height=1350,
             target_anchor_frac=(0.5, 0.6),
-            target_scale_frac=0.22,
         ),
         PresetSpec(
             key="ig_stories",
@@ -80,7 +76,6 @@ PRESETS: dict[str, PresetSpec] = {
             output_width=1080,
             output_height=1920,
             target_anchor_frac=(0.5, 0.55),
-            target_scale_frac=0.18,
         ),
     ]
 }

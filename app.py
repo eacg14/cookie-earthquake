@@ -10,7 +10,6 @@ so the crop only has to cancel out camera shake/pan between shots.
 from __future__ import annotations
 
 import hashlib
-from dataclasses import replace
 
 import numpy as np
 import streamlit as st
@@ -21,7 +20,7 @@ from flipbook import export, features, pipeline
 from flipbook.detection import PoseDetector, detect_frame
 from flipbook.model_assets import ensure_model
 from flipbook.models import AlignmentRecord
-from flipbook.presets import PRESETS, PresetSpec
+from flipbook.presets import PRESETS
 
 THUMBNAIL_WIDTH = 420
 PREVIEW_WIDTH = 320
@@ -78,7 +77,6 @@ def init_state() -> None:
         "ref_click_points": [None, None],  # 2 points clicked on the reference's cropped preview
         "pending_frame_points": {},  # frame_idx -> [point_or_None, point_or_None]
         "last_click": {},  # dedup key -> last handled (x, y), avoids reprocessing stale reruns
-        "_pose_reference_idx": None,
         "_framing_signature": None,
     }
     for key, value in defaults.items():
@@ -96,8 +94,8 @@ def reset_for_new_upload() -> None:
 
 def reset_framing_dependent_state() -> None:
     """Anything keyed to output-canvas pixel coordinates goes stale whenever
-    the preset, zoom, reference frame, or rotation toggle changes (they all
-    change the reference frame's crop transform)."""
+    the preset, reference frame, or rotation toggle changes (they all change
+    the reference frame's crop transform, and thus the max-area scale)."""
     st.session_state.ref_click_points = [None, None]
     st.session_state.pending_frame_points = {}
     st.session_state.frame_manual_matrices = {}
@@ -132,16 +130,6 @@ def draw_point_overlay(image_rgb: np.ndarray, points: list) -> Image.Image:
     return img
 
 
-def get_active_preset() -> PresetSpec:
-    """The selected preset with its target_scale_frac overridden by the
-    "subject size in frame" slider, if the user has touched it this session.
-    """
-    base = PRESETS[st.session_state.preset_key]
-    slider_key = f"scale_frac_{base.key}"
-    scale_frac = st.session_state.get(slider_key, base.target_scale_frac)
-    return replace(base, target_scale_frac=scale_frac)
-
-
 def ensure_reference_pose(detector: PoseDetector) -> None:
     if st.session_state.reference_pose is None:
         image = st.session_state.frames[st.session_state.reference_frame_idx]
@@ -155,7 +143,7 @@ def get_reference_record() -> AlignmentRecord:
 
 
 def build_plans(detector: PoseDetector):
-    preset = get_active_preset()
+    preset = PRESETS[st.session_state.preset_key]
     return pipeline.build_frame_plans(
         st.session_state.frames,
         preset,
@@ -226,21 +214,8 @@ def main() -> None:
             "Correct camera tilt (rotation)", value=st.session_state.rotation_enabled
         )
 
-    active_preset_key = st.session_state.preset_key
-    slider_key = f"scale_frac_{active_preset_key}"
-    st.slider(
-        "Subject size in frame (lower = looser crop, keeps more of the photo)",
-        min_value=0.05,
-        max_value=0.40,
-        value=st.session_state.get(slider_key, PRESETS[active_preset_key].target_scale_frac),
-        step=0.01,
-        format="%.2f",
-        key=slider_key,
-    )
-
     framing_signature = (
         st.session_state.preset_key,
-        st.session_state.get(slider_key),
         st.session_state.reference_frame_idx,
         st.session_state.rotation_enabled,
     )
@@ -408,7 +383,7 @@ def main() -> None:
         st.warning(f"{still_blocked} frame(s) still need manual correction and will be excluded from export.")
 
     if exportable:
-        preset = get_active_preset()
+        preset = PRESETS[st.session_state.preset_key]
         zip_bytes = export.build_zip(exportable, preset, len(st.session_state.frames))
         st.download_button(
             "Download aligned carousel (.zip)",

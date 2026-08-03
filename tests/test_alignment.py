@@ -31,7 +31,6 @@ TEST_PRESET = PresetSpec(
     output_width=1000,
     output_height=1000,
     target_anchor_frac=(0.5, 0.6),
-    target_scale_frac=0.3,
 )
 
 
@@ -74,7 +73,7 @@ def test_reference_angle_verticalizes_tilted_torso():
 
 def test_compute_transform_maps_anchor_to_target():
     record = make_record((300.0, 500.0), (300.0, 400.0))
-    matrix = compute_transform(record, TEST_PRESET, global_rotation=0.0)
+    matrix = compute_transform(record, TEST_PRESET, global_rotation=0.0, scale=1.5)
     mapped_anchor = apply_transform(matrix, record.anchor)
     expected = (
         TEST_PRESET.target_anchor_frac[0] * TEST_PRESET.output_width,
@@ -84,23 +83,25 @@ def test_compute_transform_maps_anchor_to_target():
     assert mapped_anchor[1] == pytest.approx(expected[1], abs=1e-6)
 
 
-def test_compute_transform_scales_to_target_length():
+def test_compute_transform_scales_by_given_factor():
     record = make_record((300.0, 500.0), (300.0, 350.0))  # length 150
-    matrix = compute_transform(record, TEST_PRESET, global_rotation=0.0)
+    matrix = compute_transform(record, TEST_PRESET, global_rotation=0.0, scale=2.0)
     mapped_anchor = apply_transform(matrix, record.anchor)
     mapped_reference = apply_transform(matrix, record.reference_point)
     mapped_length = math.hypot(
         mapped_reference[0] - mapped_anchor[0], mapped_reference[1] - mapped_anchor[1]
     )
-    expected_length = TEST_PRESET.target_scale_frac * TEST_PRESET.output_height
-    assert mapped_length == pytest.approx(expected_length, abs=1e-6)
+    # scale=2.0 on a torso of length 150 (in original pixels) -> 300 in output
+    # pixels, regardless of the preset -- scale is a direct multiplier, not
+    # derived from the record's own torso length.
+    assert mapped_length == pytest.approx(300.0, abs=1e-6)
 
 
 def test_compute_transform_no_rotation_keeps_tilt():
     # A tilted torso, with global_rotation=0, should stay tilted post-transform
     # (only scale/translate applied, direction preserved).
     record = make_record((300.0, 500.0), (350.0, 400.0))
-    matrix = compute_transform(record, TEST_PRESET, global_rotation=0.0)
+    matrix = compute_transform(record, TEST_PRESET, global_rotation=0.0, scale=1.0)
     mapped_anchor = apply_transform(matrix, record.anchor)
     mapped_reference = apply_transform(matrix, record.reference_point)
     assert mapped_reference[0] > mapped_anchor[0]  # still tilted right
@@ -109,17 +110,38 @@ def test_compute_transform_no_rotation_keeps_tilt():
 def test_compute_transform_global_rotation_verticalizes_reference_frame():
     record = make_record((300.0, 500.0), (350.0, 400.0))
     theta = reference_angle(record)
-    matrix = compute_transform(record, TEST_PRESET, global_rotation=theta)
+    matrix = compute_transform(record, TEST_PRESET, global_rotation=theta, scale=1.0)
     mapped_anchor = apply_transform(matrix, record.anchor)
     mapped_reference = apply_transform(matrix, record.reference_point)
     assert mapped_reference[0] == pytest.approx(mapped_anchor[0], abs=1e-6)
     assert mapped_reference[1] < mapped_anchor[1]
 
 
-def test_compute_transform_zero_length_raises():
-    record = make_record((100.0, 100.0), (100.0, 100.0))
+def test_compute_transform_rejects_non_positive_scale():
+    record = make_record((300.0, 500.0), (300.0, 400.0))
     with pytest.raises(ValueError):
-        compute_transform(record, TEST_PRESET, global_rotation=0.0)
+        compute_transform(record, TEST_PRESET, global_rotation=0.0, scale=0.0)
+    with pytest.raises(ValueError):
+        compute_transform(record, TEST_PRESET, global_rotation=0.0, scale=-1.0)
+
+
+def test_compute_transform_scale_independent_of_record_length():
+    # Two records with wildly different torso lengths, same scale -> same
+    # mapped torso length in output space (scale no longer derived from the
+    # record's own length).
+    short = make_record((0.0, 0.0), (0.0, -10.0))
+    long = make_record((0.0, 0.0), (0.0, -500.0))
+    m_short = compute_transform(short, TEST_PRESET, global_rotation=0.0, scale=3.0)
+    m_long = compute_transform(long, TEST_PRESET, global_rotation=0.0, scale=3.0)
+
+    short_len = math.hypot(*[
+        a - b for a, b in zip(apply_transform(m_short, short.reference_point), apply_transform(m_short, short.anchor))
+    ])
+    long_len = math.hypot(*[
+        a - b for a, b in zip(apply_transform(m_long, long.reference_point), apply_transform(m_long, long.anchor))
+    ])
+    assert short_len == pytest.approx(30.0, abs=1e-6)
+    assert long_len == pytest.approx(1500.0, abs=1e-6)
 
 
 # --- detection.py fallback chain (pure function, no MediaPipe needed) -----------------------

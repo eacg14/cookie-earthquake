@@ -36,7 +36,6 @@ def test_preset_rejects_mismatched_aspect_and_resolution():
             output_width=100,
             output_height=200,
             target_anchor_frac=(0.5, 0.5),
-            target_scale_frac=0.3,
         )
 
 
@@ -51,5 +50,4 @@ def test_preset_rejects_out_of_range_fracs():
             output_width=100,
             output_height=100,
             target_anchor_frac=(1.5, 0.5),
-            target_scale_frac=0.3,
         )

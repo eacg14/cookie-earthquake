@@ -12,15 +12,26 @@ zoom-drifting mess.
    downswing, impact, follow-through).
 2. Pick the target format: Instagram Feed Square (1:1), Feed Portrait (4:5),
    or Stories/Reels (9:16).
-3. Pick a "reference frame" (usually address) -- it anchors the camera-tilt
-   correction applied uniformly across the sequence.
-4. Run pose detection. Each frame gets an auto-detected anchor (hip midpoint)
-   and scale/rotation reference (shoulder midpoint), with fallbacks for
-   occluded/side-on poses.
-5. Review the grid: click any thumbnail to correct a bad anchor or
-   scale/rotation point by hand. Frames MediaPipe couldn't read at all are
-   blocked from export until corrected.
-6. Export a zip of the cropped/aligned stills, ready to upload as a carousel.
+3. Pick a "reference frame" (usually address) and run alignment. Only this
+   frame gets pose-detected (hip anchor + shoulder/rotation reference, with
+   fallbacks for occluded/side-on poses) -- it establishes the crop's
+   position and camera-tilt correction for the whole series.
+4. Every other frame is aligned by matching its *static background* (trees,
+   golf bag, ground texture) to the reference frame via ORB feature matching
+   + RANSAC, not by tracking the moving golfer. The crop only has to cancel
+   out handheld camera shake between shots, so the swing moves naturally
+   within a steady frame instead of the frame chasing the subject.
+5. The crop's size is chosen automatically: once every frame is registered
+   to the reference frame's coordinate space, the app finds the largest crop
+   that stays within *every* frame's real pixel bounds simultaneously -- the
+   maximum area shared by the whole aligned series, with zero fabricated
+   (border-replicated) pixels. There's no manual zoom to tune.
+6. Review: frames whose background couldn't be reliably matched are flagged
+   -- click 2 matching static points (e.g. a golf bag corner) in the
+   reference preview and in the frame that needs fixing. The reference
+   frame's own anchor/scale points are also correctable by hand if pose
+   detection got them wrong.
+7. Export a zip of the cropped/aligned stills, ready to upload as a carousel.
 
 See `/root/.claude/plans/i-take-sports-photos-greedy-emerson.md`-style design
 notes in the module docstrings (`flipbook/alignment.py` especially) for the
@@ -55,7 +66,7 @@ is free:
 2. On share.streamlit.io, create a new app pointing at this repo/branch and `app.py`.
 3. In "Advanced settings", pick Python 3.11 (what this app is tested against).
 4. Deploy. `requirements.txt` (pip deps) and `packages.txt` (apt deps --
-   `libgl1`/`libglib2.0-0`, needed by OpenCV/MediaPipe) are picked up
+   `libgl1`/`libglib2.0-0t64`, needed by OpenCV/MediaPipe) are picked up
    automatically. The pose model downloads itself on first use.
 
 ## Development
@@ -74,6 +85,6 @@ checklist.
 ## Adding a new platform/format
 
 Add a row to `PRESETS` in `flipbook/presets.py` with the aspect ratio, output
-resolution, and target anchor/scale framing. Nothing else needs to change --
+resolution, and target anchor position. Nothing else needs to change --
 `alignment.py`, `cropping.py`, and `pipeline.py` all consume `PresetSpec`
-generically.
+generically, and crop size is always computed automatically per-series.
