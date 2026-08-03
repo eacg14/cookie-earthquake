@@ -25,6 +25,10 @@ class PresetSpec:
     # and places the hips a bit below vertical center.
     target_anchor_frac: tuple[float, float]
     # Torso length (shoulder-mid to hip-mid) as a fraction of output_height.
+    # This is the "zoom" knob: smaller values crop looser (keep more of the
+    # original photo), larger values crop tighter around the subject. Treated
+    # as a default starting point -- app.py lets the user override it per
+    # session via a slider.
     target_scale_frac: float
 
     def __post_init__(self) -> None:
@@ -54,7 +58,7 @@ PRESETS: dict[str, PresetSpec] = {
             output_width=1080,
             output_height=1080,
             target_anchor_frac=(0.5, 0.62),
-            target_scale_frac=0.32,
+            target_scale_frac=0.26,
         ),
         PresetSpec(
             key="ig_feed_portrait",
@@ -65,7 +69,7 @@ PRESETS: dict[str, PresetSpec] = {
             output_width=1080,
             output_height=1350,
             target_anchor_frac=(0.5, 0.6),
-            target_scale_frac=0.28,
+            target_scale_frac=0.22,
         ),
         PresetSpec(
             key="ig_stories",
@@ -76,7 +80,7 @@ PRESETS: dict[str, PresetSpec] = {
             output_width=1080,
             output_height=1920,
             target_anchor_frac=(0.5, 0.55),
-            target_scale_frac=0.22,
+            target_scale_frac=0.18,
         ),
     ]
 }

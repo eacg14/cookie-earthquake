@@ -5,6 +5,7 @@ and correct the auto-detected alignment, then export cropped/aligned stills.
 from __future__ import annotations
 
 import hashlib
+from dataclasses import replace
 
 import numpy as np
 import streamlit as st
@@ -15,7 +16,7 @@ from flipbook import export, pipeline
 from flipbook.detection import PoseDetector, alignment_record_from_landmarks
 from flipbook.model_assets import ensure_model
 from flipbook.models import AlignmentRecord
-from flipbook.presets import PRESETS
+from flipbook.presets import PRESETS, PresetSpec
 
 THUMBNAIL_WIDTH = 420
 PREVIEW_WIDTH = 320
@@ -116,8 +117,18 @@ def run_detection(detector: PoseDetector) -> None:
     progress.empty()
 
 
+def get_active_preset() -> PresetSpec:
+    """The selected preset with its target_scale_frac overridden by the
+    "subject size in frame" slider, if the user has touched it this session.
+    """
+    base = PRESETS[st.session_state.preset_key]
+    slider_key = f"scale_frac_{base.key}"
+    scale_frac = st.session_state.get(slider_key, base.target_scale_frac)
+    return replace(base, target_scale_frac=scale_frac)
+
+
 def build_plans(detector: PoseDetector):
-    preset = PRESETS[st.session_state.preset_key]
+    preset = get_active_preset()
     overrides = {idx: effective_record(idx) for idx in range(len(st.session_state.frames))}
     return pipeline.build_frame_plans(
         st.session_state.frames,
@@ -185,6 +196,18 @@ def main() -> None:
         st.session_state.rotation_enabled = st.checkbox(
             "Correct camera tilt (rotation)", value=st.session_state.rotation_enabled
         )
+
+    active_preset_key = st.session_state.preset_key
+    slider_key = f"scale_frac_{active_preset_key}"
+    st.slider(
+        "Subject size in frame (lower = looser crop, keeps more of the photo)",
+        min_value=0.05,
+        max_value=0.40,
+        value=st.session_state.get(slider_key, PRESETS[active_preset_key].target_scale_frac),
+        step=0.01,
+        format="%.2f",
+        key=slider_key,
+    )
 
     if st.button("Run pose detection", type="primary"):
         run_detection(detector)
@@ -268,7 +291,7 @@ def main() -> None:
         st.warning(f"{blocked} frame(s) still need manual correction and will be excluded from export.")
 
     if exportable:
-        preset = PRESETS[st.session_state.preset_key]
+        preset = get_active_preset()
         zip_bytes = export.build_zip(exportable, preset, len(st.session_state.frames))
         st.download_button(
             "Download aligned carousel (.zip)",
